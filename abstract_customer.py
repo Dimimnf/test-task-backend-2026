@@ -6,7 +6,7 @@ from typing import Optional, Dict
 from sqlalchemy import text
 
 from amocrm import Customer, Lead
-from models import AbstractCustomer, db, AbcCustomerEntities
+from models.models import AbstractCustomer, db, AbcCustomerEntities
 
 logger = logging.getLogger(__name__)
 

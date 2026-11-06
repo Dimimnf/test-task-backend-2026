@@ -1,0 +1,10 @@
+[project]
+name = "test-task-backend-2026"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "requests>=2.34.2",
+    "sqlalchemy>=2.1.8",
+]
