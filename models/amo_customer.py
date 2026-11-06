@@ -18,3 +18,8 @@ class AmoCustomer(db.Model):
     login = Column(String, index=True)
     name = Column(String, nullable=False)
     api_value = Column(JSONB)
+
+    abstract_customer = db.relationship(
+        "AbstractCustomer",
+        back_populates="amo_customers",
+    )

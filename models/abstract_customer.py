@@ -1,4 +1,4 @@
-from sqlalchemy import Column, BigInteger, DateTime, func
+from sqlalchemy import BigInteger, Column, DateTime, func
 from sqlalchemy.dialects.postgresql import JSONB
 
 from models.base import db
@@ -39,10 +39,10 @@ class AbstractCustomer(db.Model):
     amo_companies = db.relationship(
         "AmoCompany",
         back_populates="abstract_customer",
-        cascade="all, delete-orphan",
+        secondary="abstract_customer_company",
     )
     amo_contacts = db.relationship(
         "AmoContact",
         back_populates="abstract_customer",
-        cascade="all, delete-orphan",
+        secondary="abstract_customer_contact",
     )

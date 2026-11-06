@@ -1,6 +1,6 @@
-from typing import Any, ClassVar, Optional, Type
+from typing import Any, ClassVar, Iterable, Optional, Type
 
-from sqlalchemy import inspect
+from sqlalchemy import delete, inspect
 
 from models.base import db
 
@@ -73,3 +73,21 @@ class BaseDAL:
             db.session.rollback()
             raise
         return True
+
+    @classmethod
+    def delete_not_in_ids(cls, entity_ids: Iterable[Any]) -> int:
+        """Удаляет записи, чьи первичные ключи отсутствуют в наборе ID."""
+        model = cls.model
+        primary_key = inspect(model).primary_key
+        if len(primary_key) != 1:
+            raise NotImplementedError(
+                "Удаление по набору ID поддерживается только для одиночного первичного ключа"
+            )
+        stmt = delete(model).where(primary_key[0].not_in(set(entity_ids)))
+        try:
+            result = db.session.execute(stmt)
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            raise
+        return result.rowcount or 0
