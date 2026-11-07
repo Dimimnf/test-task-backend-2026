@@ -1,6 +1,7 @@
 from typing import Any, ClassVar, Iterable, Optional, Type
 
-from sqlalchemy import delete, inspect
+from sqlalchemy import all_, bindparam, delete, inspect
+from sqlalchemy.dialects.postgresql import ARRAY
 
 from models.base import db
 
@@ -76,18 +77,21 @@ class BaseDAL:
 
     @classmethod
     def delete_not_in_ids(cls, entity_ids: Iterable[Any]) -> int:
-        """Удаляет записи, чьи первичные ключи отсутствуют в наборе ID."""
+        """Удаляет отсутствующие ID без commit, используя один PostgreSQL array bind."""
         model = cls.model
         primary_key = inspect(model).primary_key
         if len(primary_key) != 1:
             raise NotImplementedError(
                 "Удаление по набору ID поддерживается только для одиночного первичного ключа"
             )
-        stmt = delete(model).where(primary_key[0].not_in(set(entity_ids)))
-        try:
-            result = db.session.execute(stmt)
-            db.session.commit()
-        except Exception:
-            db.session.rollback()
-            raise
+        keep_ids = list(entity_ids)
+        if not keep_ids:
+            return 0
+        bind = bindparam(
+            "keep_ids",
+            value=keep_ids,
+            type_=ARRAY(primary_key[0].type),
+        )
+        stmt = delete(model).where(primary_key[0] != all_(bind))
+        result = db.session.execute(stmt)
         return result.rowcount or 0

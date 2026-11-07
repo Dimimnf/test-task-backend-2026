@@ -1,5 +1,7 @@
-from models import AbstractCustomer, db
+from sqlalchemy import delete, update
+
 from DAL import AbstractCustomerCompanyDAL, AbstractCustomerContactDAL
+from models import AbstractCustomer, AmoCustomer, AmoLead, db
 
 
 def merge_abstract_customers(
@@ -11,15 +13,21 @@ def merge_abstract_customers(
         return target
 
     try:
-        for entity in list(source.amo_customers) + list(source.amo_leads):
-            entity.abstract_customer = target
+        db.session.execute(
+            update(AmoCustomer)
+            .where(AmoCustomer.abstract_customer_id == source.id)
+            .values(abstract_customer_id=target.id)
+        )
+        db.session.execute(
+            update(AmoLead)
+            .where(AmoLead.abstract_customer_id == source.id)
+            .values(abstract_customer_id=target.id)
+        )
 
         AbstractCustomerContactDAL.move_all(source.id, target.id)
         AbstractCustomerCompanyDAL.move_all(source.id, target.id)
-
-        db.session.flush()
-        db.session.delete(source)
-        db.session.commit()
+        db.session.execute(delete(AbstractCustomer).where(AbstractCustomer.id == source.id))
+        db.session.expire_all()
     except Exception:
         db.session.rollback()
         raise

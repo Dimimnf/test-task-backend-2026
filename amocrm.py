@@ -1,5 +1,6 @@
+import inspect as _inspect
 import time
-from typing import Type, Any, Iterator
+from typing import Any, Dict, Iterator, Type
 
 import requests
 
@@ -63,7 +64,6 @@ class BaseEntity:
     """
     base class for entity
     """
-    schema = None
     entity_name = None
     url = None
     custom_fields_values = None
@@ -213,6 +213,39 @@ class Lead(BaseEntity):
             self.companies = _embedded.get(COMPANIES)
 
 
+def _normalize_custom_fields(values: Any) -> Dict[str, Any]:
+    """Приводит custom_fields_values amoCRM к виду, который ожидает get_field."""
+    if values is None:
+        return {}
+    if isinstance(values, dict):
+        return values
+    result = {}
+    for item in values:
+        if not isinstance(item, dict):
+            continue
+        name = item.get("field_name")
+        if not name:
+            continue
+        vals = item.get("values", [])
+        value = None
+        if vals and isinstance(vals[0], dict):
+            value = vals[0].get("value")
+        result[name] = {"value": value}
+    return result
+
+
+def _build_entity(obj_cls: Type[BaseEntity], data: Dict[str, Any]) -> BaseEntity:
+    """Создаёт entity, отбрасывая поля, неизвестные конструктору."""
+    sig = _inspect.signature(obj_cls.__init__)
+    known = {p.name for p in sig.parameters.values() if p.name != "self"}
+    filtered = {k: v for k, v in data.items() if k in known}
+    entity = obj_cls(**filtered)
+    for key, value in data.items():
+        if key not in known:
+            setattr(entity, key, value)
+    return entity
+
+
 def amocrm_get(obj_cls: Type[BaseEntity],
                page: int = None,
                limit: int = 250,
@@ -237,13 +270,12 @@ def amocrm_get(obj_cls: Type[BaseEntity],
         else:
             params['with'] = _with
     if query:
-        params[f'query'] = query
+        params['query'] = query
 
     headers = {}
     base_url = ""
     url = f"{base_url}{obj_cls.url}"
     entity_name = obj_cls.entity_name
-    schema = obj_cls.get_schema(many=True)
 
     while True:
         response = None
@@ -267,21 +299,17 @@ def amocrm_get(obj_cls: Type[BaseEntity],
             break
         if json_data is not None:
             counter = 0
-            for entity in schema.load(json_data['_embedded'][entity_name]):
+            for item in json_data['_embedded'][entity_name]:
                 counter += 1
+                entity = _build_entity(obj_cls, item)
+                entity.custom_fields_values = _normalize_custom_fields(entity.custom_fields_values)
                 skip_entity = False
                 if custom_filter:
-                    # if custom filter is not None then check custom field,
-                    # if at least one not equal filter, set skip_entity value True and break checker
-                    #
                     for key, value in custom_filter.items():
                         if entity.get_field(key) != value:
                             skip_entity = True
                             break
-                # check if should pass entity
-                if skip_entity:
-                    pass
-                else:
+                if not skip_entity:
                     yield entity
 
             # condition to stop while loop
